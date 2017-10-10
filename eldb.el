@@ -20,8 +20,10 @@
 
 ;; To learn how exactly data is stored,
 ;; see documentation that is available at `eldb' github repo.
-(defconst eldb--data-filename (expand-file-name "data.el"
-                                                (file-name-directory (buffer-file-name)))
+(defconst eldb--data-filename
+  (expand-file-name
+   "data.el"
+   (file-name-directory (buffer-file-name)))
   "Database file name.")
 
 (defconst eldb--data nil
