@@ -43,6 +43,12 @@ Should be called before any operations over corpus."
   "Return non-nil if database file is loaded into Emacs."
   (not (not eldb--data)))
 
+(defun eldb-data-reset ()
+  "Reset database object state.  Last saved database file is left untouched.
+To make changes permanent, call `eldb-data-save' after this."
+  (when (y-or-n-p "Reset database object?")
+    (setq eldb--data (make-hash-table :test 'eq))))
+
 (defun eldb-data-save ()
   "Write current database state to the filesystem."
   (when (and (eldb-data-loaded-p)
