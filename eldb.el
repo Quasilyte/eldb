@@ -26,7 +26,7 @@
    (file-name-directory (buffer-file-name)))
   "Database file name.")
 
-(defconst eldb--data nil
+(defvar eldb--data nil
   "Database state object.")
 
 ;; Public:
