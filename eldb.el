@@ -93,7 +93,22 @@ TEXT may have multiple Emacs Lisp forms.
 Result will be wrapped in `progn' form."
   (unless (stringp text)
     (error "TEXT must be string, %S given" (type-of text)))
-  (eldb-insert-forms pkg (read (format "(progn %s)" text))))
+  ;; Newlines are needed to avoid issues with leading
+  ;; and trailing comments.
+  (eldb-insert-forms pkg (read (format "(progn \n%s\n)" text))))
+
+(defun eldb-insert-files (pkg files)
+  "Associate PKG symbol with text collected from FILES.
+Concatenates file contents and calls `elds-insert-text'."
+  (dolist (f files)
+    (unless (file-exists-p f)
+      (error "file `%s' does not exist" f)))
+  (eldb-insert-text pkg
+                    (with-temp-buffer
+                      (dolist (f files)
+                        (insert-file-contents f)
+                        (insert "\n"))
+                      (buffer-string))))
 
 (defun eldb-query-package (pkg-regexp regexp &optional context)
   "For packages that match PKG-REGEXP, collect REGEXP matches with CONTEXT pad."
@@ -114,11 +129,11 @@ Result will be wrapped in `progn' form."
 Transformations are defined in `eldb' package description."
   forms)
 
-;; STUB: will be implemented later.
 (defun eldb--minify-text (text)
   "Apply compressions to TEXT.
 Transformations are defined in `eldb' package description."
-  text)
+  ;; Escape newlines.
+  (replace-regexp-in-string "\n" "\\n" text nil t))
 
 (defsubst eldb--context-size (context)
   "Return corrected CONTEXT argument."
