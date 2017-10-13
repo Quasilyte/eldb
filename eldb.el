@@ -26,6 +26,9 @@
    (file-name-directory (buffer-file-name)))
   "Database file name.")
 
+(defconst eldb--max-context 128
+  "Max query context length in chars.")
+
 (defvar eldb--data nil
   "Database state object.")
 
@@ -73,11 +76,16 @@ For example, '(progn (list 1 2) (+ 1 2)) is valid."
     (error "FORMS must be a list, %S given" (type-of forms)))
   (unless (eq 'progn (car forms))
     (error "FORMS head should be `progn', got %S" (car forms)))
-  (puthash pkg
-           (eldb--minify-text
-            (prin1-to-string
-             (eldb--minify-forms forms)))
-           eldb--data))
+  (let ((text (eldb--minify-text
+               (prin1-to-string
+                (eldb--minify-forms forms)))))
+    ;; Add space padding at the both string sides.
+    ;; This makes taking a substring with context pad simpler
+    ;; as there is no corner cases.
+    (setq text (concat (make-string eldb--max-context ? )
+                       text
+                       (make-string eldb--max-context ? )))
+    (puthash pkg text eldb--data)))
 
 (defun eldb-insert-text (pkg text)
   "Associate PKG symbol with TEXT.
@@ -86,6 +94,21 @@ Result will be wrapped in `progn' form."
   (unless (stringp text)
     (error "TEXT must be string, %S given" (type-of text)))
   (eldb-insert-forms pkg (read (format "(progn %s)" text))))
+
+(defun eldb-query-package (selector regexp &optional context)
+  "For packages that match SELECTOR, collect REGEXP matches with CONTEXT pad.
+SELECTOR can be a string for regexp match, symbol for literal match,
+and a list for whitelist match.
+When SELECTOR is nil, all packages are matched."
+  (setq selector (or selector 0))
+  (let ((matches nil))
+    (maphash
+     (lambda (pkg text)
+       (when (eldb--pkg-match pkg selector)
+         (push (eldb--query-text text regexp context)
+               matches)))
+     eldb--data)
+    (apply 'append matches)))
 
 ;; Private:
 
@@ -100,6 +123,39 @@ Transformations are defined in `eldb' package description."
   "Apply compressions to TEXT.
 Transformations are defined in `eldb' package description."
   text)
+
+(defsubst eldb--context-size (context)
+  "Return corrected CONTEXT argument."
+  (if (numberp context)
+      (min context eldb--max-context)
+    ;; Default value.
+    20))
+
+(defun eldb--query-text (text regexp &optional context)
+  "Collect lines from TEXT that match REGEXP with CONTEXT pad.
+TEXT is expected to be package source text."
+  (setq context (eldb--context-size context))
+  (let ((pos 0)
+        (matches nil))
+    (while (setq pos (string-match regexp text pos))
+      (push (substring text
+                       (- pos context)
+                       (+ (match-end 0) context))
+            matches)
+      (setq pos (match-end 0)))
+    (nreverse matches)))
+
+(defun eldb--pkg-match (pkg selector)
+  "Return non-nil if PKG matches SELECTOR.
+SELECTOR can be a symbol, regexp string or list of symbols.
+All other kind of selectors always return t."
+  (cond ((symbolp selector)
+         (eq pkg selector))
+        ((stringp selector)
+         (string-match-p selector (symbol-name pkg)))
+        ((listp selector)
+         (memq pkg selector))
+        (t t)))
 
 (provide 'eldb)
 
