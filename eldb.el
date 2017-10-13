@@ -95,16 +95,12 @@ Result will be wrapped in `progn' form."
     (error "TEXT must be string, %S given" (type-of text)))
   (eldb-insert-forms pkg (read (format "(progn %s)" text))))
 
-(defun eldb-query-package (selector regexp &optional context)
-  "For packages that match SELECTOR, collect REGEXP matches with CONTEXT pad.
-SELECTOR can be a string for regexp match, symbol for literal match,
-and a list for whitelist match.
-When SELECTOR is nil, all packages are matched."
-  (setq selector (or selector 0))
+(defun eldb-query-package (pkg-regexp regexp &optional context)
+  "For packages that match PKG-REGEXP, collect REGEXP matches with CONTEXT pad."
   (let ((matches nil))
     (maphash
      (lambda (pkg text)
-       (when (eldb--pkg-match pkg selector)
+       (when (string-match-p pkg-regexp (symbol-name pkg))
          (push (eldb--query-text text regexp context)
                matches)))
      eldb--data)
@@ -144,18 +140,6 @@ TEXT is expected to be package source text."
             matches)
       (setq pos (match-end 0)))
     (nreverse matches)))
-
-(defun eldb--pkg-match (pkg selector)
-  "Return non-nil if PKG matches SELECTOR.
-SELECTOR can be a symbol, regexp string or list of symbols.
-All other kind of selectors always return t."
-  (cond ((symbolp selector)
-         (eq pkg selector))
-        ((stringp selector)
-         (string-match-p selector (symbol-name pkg)))
-        ((listp selector)
-         (memq pkg selector))
-        (t t)))
 
 (provide 'eldb)
 
