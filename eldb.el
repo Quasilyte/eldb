@@ -42,6 +42,10 @@ Should be called before any operations over corpus."
 
 (defun eldb-data-reload ()
   "Forced load of database file."
+  (eldb--check-tar-bz)
+  (shell-command (format "tar -jxf %s.tar.bz2 -C %s"
+                         (file-name-nondirectory eldb--data-filename)
+                         (file-name-directory eldb--data-filename)))
   (load-file eldb--data-filename))
 
 (defun eldb-data-loaded-p ()
@@ -56,6 +60,7 @@ To make changes permanent, call `eldb-data-save' after this."
 
 (defun eldb-data-save ()
   "Write current database state to the filesystem."
+  (eldb--check-tar-bz)
   (when (and (eldb-data-loaded-p)
              (not (hash-table-p eldb--data)))
     (error "`eldb--data' is corrupted"))
@@ -64,7 +69,12 @@ To make changes permanent, call `eldb-data-save' after this."
     ;; `prin1' writes dirrectly to the buffer.
     (insert "(defconst eldb--data ")
     (prin1 eldb--data (current-buffer))
-    (insert ")")))
+    (insert ")"))
+  ;; Use `-C' to avoid full paths leaking to the archive.
+  (shell-command (format "tar -cjf %s.tar.bz2 %s -C %s"
+                         (file-name-nondirectory eldb--data-filename)
+                         (file-name-nondirectory eldb--data-filename)
+                         (file-name-directory eldb--data-filename))))
 
 (defun eldb-insert-forms (pkg forms)
   "Associate PKG symbol with FORMS.
@@ -109,6 +119,11 @@ Concatenates file contents and calls `elds-insert-text'."
                         (insert-file-contents f)
                         (insert "\n"))
                       (buffer-string))))
+
+(defun eldb-insert-file (pkg file)
+  "Associate PKG symbol with FILE contents.
+Convenience wrapper around `eldb-insert-files' for single file."
+  (eldb-insert-files pkg (list file)))
 
 (defun eldb-query-package (pkg-regexp regexp &optional context)
   "For packages that match PKG-REGEXP, collect REGEXP matches with CONTEXT pad."
@@ -155,6 +170,12 @@ TEXT is expected to be package source text."
             matches)
       (setq pos (match-end 0)))
     (nreverse matches)))
+
+(defun eldb--check-tar-bz ()
+  "Check that both `tar' and `bzip2' are available."
+  (unless (and (executable-find "bzip2")
+               (executable-find "tar"))
+    (error "`bzip2' and `tar' are required")))
 
 (provide 'eldb)
 
